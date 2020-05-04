@@ -388,6 +388,10 @@ Parser::Parser() {
 	m_x = 0;
 	m_y = 0;
 
+	m_error_count = 0;
+	m_inside_expression = false;
+	m_current_symbol = 0;
+
 	m_during_print_call = false;
 }
 
