@@ -390,7 +390,7 @@ Parser::Parser() {
 
 	m_error_count = 0;
 	m_inside_expression = false;
-	m_current_symbol = 0;
+	m_current_symbol = _EOF;
 
 	m_during_print_call = false;
 }

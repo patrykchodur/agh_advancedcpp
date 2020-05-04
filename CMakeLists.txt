@@ -8,6 +8,7 @@ find_package(Curses REQUIRED)
 include_directories(${Curses_INCLUDE_DIR})
 
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_FLAGS "-Wall -g")
 
 set(source_files src/main.cpp src/board.cpp src/engine.cpp src/rtl_parser.cpp)
 

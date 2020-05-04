@@ -129,7 +129,7 @@ void Board::dump_to_file(const std::string& name) {
 	};
 
 	auto out_string = [&](auto string) {
-		if (line_length + string.size() > max_line_len) {
+		if (line_length + string.size() > (size_t)max_line_len) {
 			file << '\n';
 			line_length = 0;
 		}
