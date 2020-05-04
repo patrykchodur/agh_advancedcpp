@@ -18,6 +18,8 @@ public:
 private:
 	static void setupNcurses();
 	static void disableNcurses();
+	void display_help();
+	void display_save();
 	Board m_board;
 	WINDOW* m_scr;
 

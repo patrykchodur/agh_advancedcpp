@@ -5,11 +5,13 @@
 #include <sstream>
 #include <cassert>
 #include <initializer_list>
+#include <map>
 
 #define PARSE_ANYWAY
 #define MAX_ERROR_COUNT 4
 
 enum Token : int {
+	_STRING_ERROR = -2,
 	_ERROR = -1,
 	_EOF = 0,
 	_X, // x | X
@@ -20,10 +22,19 @@ enum Token : int {
 	_B, // b | B
 	_O, // o | O
 	_S, // s | S
+	_MULTIPLY,
+	_PLUS,
+	_MINUS,
+	_IDENTIFIER, // [a-zA-Z ~oOsSbB] [a-zA-Z_]*
+	_O_BRACKET,
+	_C_BRACKET,
+	_PERCENT, // %
 	_SLASH, // /
 	_EXCLAMATION_MARK, // !
 	_NUMBER, // [0-9]\+
 	_COMMENT, // #\.\$
+	_STRING,
+	_CALL,
 	_RULE, // rule
 	_TOKEN_LAST
 };
@@ -31,35 +42,53 @@ enum Token : int {
 std::string pretty_token(const std::pair<int, std::string>& tok) {
 	switch (tok.first) {
 	// case _ERROR:
-		// return std::string("error");
+		// return {"error"};
 	case _EOF:
-		return std::string("eof");
+		return {"eof"};
 	case _X:
-		return std::string("x");
+		return {"'x'"};
 	case _Y:
-		return std::string("y");
+		return {"'y'"};
 	case _COMMA:
-		return std::string("comma");
+		return {"','"};
 	case _EQUALS:
-		return std::string("equals");
+		return {"'='"};
 	case _DOLAR:
-		return std::string("dolar");
+		return {"'$'"};
 	case _B:
-		return std::string("b");
+		return {"'b'"};
 	case _O:
-		return std::string("o");
+		return {"'o'"};
 	case _S:
-		return std::string("s");
+		return {"'s'"};
+	case _MULTIPLY:
+		return {"'*'"};
+	case _PLUS:
+		return {"'+'"};
+	case _MINUS:
+		return {"'-'"};
 	case _SLASH:
-		return std::string("slash");
+		return {"'/'"};
 	case _EXCLAMATION_MARK:
-		return std::string("exclamation_mark");
+		return {"'!'"};
+	case _PERCENT:
+		return {"'%'"};
 	case _NUMBER:
-		return std::string("number");
+		return {"number '" + tok.second + '\''};
 	case _COMMENT:
-		return std::string("comment");
+		return {"comment '" + tok.second + '\''};
+	case _STRING:
+		return {"string '" + tok.second + '\''};
+	case _CALL:
+		return {"call"};
 	case _RULE:
-		return std::string("rule");
+		return {"rule"};
+	case _IDENTIFIER:
+		return {"identifier '" + tok.second + '\''};
+	case _O_BRACKET:
+		return {"'('"};
+	case _C_BRACKET:
+		return {"')'"};
 	default:
 		return tok.second;
 	}
@@ -131,7 +160,8 @@ private:
 		std::string result;
 		auto c = get_char();
 		while ((c >= 'a' && c <= 'z') ||
-		       (c >= 'A' && c <= 'Z')) {
+		       (c >= 'A' && c <= 'Z') ||
+			    c == '_') {
 			result += c;
 			c = get_char();
 		}
@@ -153,6 +183,30 @@ std::pair<Token, std::string> Lexer::lex() {
 		c = get_char();
 		get_more = false;
 
+		// these letters cannot start identifier
+		switch (c) {
+		case 'b':
+		case 'B':
+			return { _B, std::string(1, c) };
+		case 'o':
+		case 'O':
+			return { _O, std::string(1, c) };
+		case 's':
+		case 'S':
+			return { _S, std::string(1, c) };
+		}
+
+		if ((c >= 'a' && c <= 'z') ||
+			(c >= 'A' && c <= 'Z') ||
+			 c == '_') {
+			auto word = get_word();
+			auto whole_word = static_cast<char>(c) + word;
+
+			if (whole_word == "call")
+				return { _CALL, whole_word };
+			return { _IDENTIFIER, static_cast<char>(c) + word };
+		}
+
 		switch (c) {
 		case eof:
 			return { _EOF, std::string() };
@@ -166,21 +220,31 @@ std::pair<Token, std::string> Lexer::lex() {
 			return { _COMMA, std::string(1, c) };
 		case '=':
 			return { _EQUALS, std::string(1, c) };
+		case '*':
+			return { _MULTIPLY, std::string(1, c) };
+		case '+':
+			return { _PLUS, std::string(1, c) };
+		case '-':
+			return { _MINUS, std::string(1, c) };
 		case '$':
 			return { _DOLAR, std::string(1, c) };
-		case 'b':
-		case 'B':
-			return { _B, std::string(1, c) };
-		case 'o':
-		case 'O':
-			return { _O, std::string(1, c) };
-		case 's':
-		case 'S':
-			return { _S, std::string(1, c) };
 		case '/':
 			return { _SLASH, std::string(1, c) };
 		case '!':
 			return { _EXCLAMATION_MARK, std::string(1, c) };
+		case '"':
+		case '\'':
+		{
+			std::string result;
+
+			auto c2 = c;
+			while ((c2 = get_char()) != c) {
+				if (c2 == eof)
+					return { _STRING_ERROR, "" };
+				result += c2;
+			}
+			return { _STRING, result };
+		}
 		case '0':
 		case '1':
 		case '2':
@@ -211,6 +275,12 @@ std::pair<Token, std::string> Lexer::lex() {
 			else
 				unget_char(word.size());
 		}
+		case '(':
+			return { _O_BRACKET, std::string(1, c) };
+		case ')':
+			return { _C_BRACKET, std::string(1, c) };
+		case '%':
+			return { _PERCENT, std::string(1, c) };
 		case ' ':
 		case '\n':
 			get_more = true;
@@ -227,11 +297,15 @@ std::pair<Token, std::string> Lexer::lex() {
  *
  * comment_section = { _COMMENT };
  *
- * header_section = [ value_description ], { _COMMA, value_description };
+ * header_section = [ statement ], { _COMMA, statement };
  *
- * value_description = _X, _EQUALS, _NUMBER
- *                    | _Y, _EQUALS, _NUMBER
- *                    | _RULE, _EQUALS, rule_description
+ * statement = value_description | (_CALL, function_call);
+ *
+ * function_call = _IDENTIFIER, _O_BRACKET, argument, _C_BRACKET
+ *
+ * argument = [ math_expression | _STRING ]
+ *
+ * value_description = _IDENTIFIER, _EQUALS, ( _NUMBER | expression_value );
  *
  * rule_description = _B, _NUMBER, _SLASH, _S, _NUMBER;
  *
@@ -239,7 +313,18 @@ std::pair<Token, std::string> Lexer::lex() {
  *
  * line_pattern = pattern, { pattern };
  *
- * pattern = [ _NUMBER ], ( _B | _O );
+ * pattern = [ _NUMBER | expression_value ], ( _B | _O );
+ *
+ * expression_value = _PERCENT, _O_BRACKET, math_expression _C_BRACKET;
+ *
+ * math_expression = _IDENTIFIER 
+ *                  | _NUMBER
+ *                  | _O_BRACKET math_expression _C_BRACKET
+ *                  | math_expression _MULTIPLY math_expression
+ *                  | math_expression _SLASH math_expression
+ *                  | math_expression _PLUS math_expression
+ *                  | math_expression _MINUS math_expression
+ *
  */
 
 class Parser {
@@ -257,6 +342,7 @@ private:
 	std::set<int> m_survives;
 	std::set<int> m_born;
 	Board::Position m_position;
+	std::map<std::string, int> m_values;
 
 	Token m_current_symbol;
 	std::string m_current_text;
@@ -268,6 +354,7 @@ private:
 	bool ask(Token symbol);
 	bool ask(std::initializer_list<Token> token_list);
 	void next_symbol();
+	void token_error();
 	void update_position();
 
 	void error(const std::string& message);
@@ -278,11 +365,17 @@ private:
 	void rtl_file();
 	void comment_section();
 	void header_section();
+	void statement();
+	void function_call();
+	void print();
+	bool m_during_print_call;
 	void value_description();
 	void rule_description();
 	void pattern_section();
 	void line_pattern();
 	void pattern();
+	int expression_value();
+	int math_expression();
 
 	int finnish_line();
 };
@@ -290,6 +383,8 @@ private:
 Parser::Parser() {
 	m_x = 0;
 	m_y = 0;
+
+	m_during_print_call = false;
 }
 
 bool Parser::accept(Token symbol) {
@@ -335,6 +430,20 @@ void Parser::next_symbol() {
 	m_current_symbol = pair.first;
 	m_current_text = m_cached_text;
 	m_cached_text = pair.second;
+
+	if (m_current_symbol < 0)
+		token_error();
+}
+
+void Parser::token_error() {
+	switch (m_current_symbol) {
+	case _STRING_ERROR:
+		error("Unmached pair of string brackets");
+		break;
+
+	default:
+		error("Unknown error in file");
+	}
 }
 
 void Parser::update_position() {
@@ -352,30 +461,99 @@ void Parser::comment_section() {
 }
 
 void Parser::header_section() {
-	if (ask({_X, _Y, _RULE})) {
-		value_description();
+	if (ask({_IDENTIFIER, _CALL})) {
+		statement();
 		while (accept(_COMMA))
-			value_description();
+			statement();
+
 	}
 
-	if (m_x <= 0) {
-		m_x = 10;
-		warning("x not set. Using default - " + std::to_string(m_x));
+	int x, y;
+	if (!m_values.count("x")) {
+		x = 10;
+		warning("x not set. Using default - " + std::to_string(x));
 	}
-	if (m_y <= 0) {
-		m_y = 10;
-		warning("y not set. Using default - " + std::to_string(m_y));
+	else
+		x = m_values["x"];
+
+	if (!m_values.count("y")) {
+		y = 10;
+		warning("y not set. Using default - " + std::to_string(y));
 	}
+	else
+		y = m_values["y"];
+
 	if (m_born.empty() || m_survives.empty()) {
 		warning("rule not set. Using default - B3/S23");
 		m_born.insert(3);
 		m_survives.insert({2, 3});
 	}
-	m_board = Board(m_y, m_x);
+	m_board = Board(y, x);
 	m_position = m_board->begin();
 }
 
+void Parser::statement() {
+	if (accept(_CALL))
+		function_call();
+	else
+		value_description();
+}
+
+void Parser::function_call() {
+	expect(_IDENTIFIER);
+	auto ident = m_current_text;
+
+	if (ident != "print") {
+		error("no function named " + ident);
+		return;
+	}
+
+	expect(_O_BRACKET);
+	print();
+	expect(_C_BRACKET);
+}
+
+void Parser::print() {
+	m_during_print_call = true;
+	if (ask(_C_BRACKET)) {
+		if (!m_error_count)
+			std::cout << '\n';
+		return;
+	}
+	do {
+		if (accept(_STRING)) {
+			auto to_print = m_current_text;
+			if (!m_error_count)
+				std::cout << to_print;
+		}
+		else {
+			auto to_print = math_expression();
+			if (!m_error_count)
+				std::cout << to_print;
+		}
+	} while (accept(_COMMA));
+	if (!m_error_count)
+		std::cout << '\n';
+
+	m_during_print_call = false;
+}
+
 void Parser::value_description() {
+	expect(_IDENTIFIER);
+	auto identifier = m_current_text;
+	expect(_EQUALS);
+	if (identifier == "rule")
+		rule_description();
+	else {
+		int result;
+		if (accept(_NUMBER))
+			result = std::stoi(m_current_text);
+		else {
+			result = expression_value();
+		}
+		m_values.insert_or_assign(identifier, result);
+	}
+	/*
 	if (accept(_X)) {
 		expect(_EQUALS);
 		expect(_NUMBER);
@@ -399,6 +577,7 @@ void Parser::value_description() {
 			error("rule redefinition");
 		rule_description();
 	}
+	*/
 }
 
 void Parser::rule_description() {
@@ -446,6 +625,8 @@ void Parser::pattern() {
 	int repetitions = 1;
 	if (accept(_NUMBER))
 		repetitions = std::stoi(m_current_text);
+	else if (ask(_PERCENT))
+		repetitions = expression_value();
 	if (accept(_B)) {
 		while (repetitions--)
 			m_board->kill_at(m_position++);
@@ -457,7 +638,59 @@ void Parser::pattern() {
 	}
 }
 
+int Parser::expression_value() {
+	int result;
+	expect(_PERCENT);
+	expect(_O_BRACKET);
+	result = math_expression();
+	expect(_C_BRACKET);
+	return result;
+
+
+	expect(_IDENTIFIER);
+	auto identifier = m_current_text;
+	expect(_C_BRACKET);
+	if (!m_values.count(identifier)) {
+		error("Unknown variable " + identifier);
+		return 0;
+	}
+	return m_values[identifier];
+}
+
+int Parser::math_expression() {
+	int result = 0;
+	if (accept(_IDENTIFIER)) {
+		if (!m_values.count(m_current_text)) {
+			error("Unknown variable " + m_current_text);
+			result = 0;
+		}
+		result = m_values[m_current_text];
+	}
+	else if (accept(_NUMBER))
+		result = std::stoi(m_current_text);
+	else if (accept(_O_BRACKET)){
+		result = math_expression();
+		expect(_C_BRACKET);
+	}
+	else {
+		error("Wrong argument in print call " + m_current_text);
+	}
+	if (accept(_MULTIPLY))
+		return result * math_expression();
+	if (accept(_SLASH))
+		return result / math_expression();
+	if (accept(_PLUS))
+		return result + math_expression();
+	if (accept(_MINUS))
+		return result - math_expression();
+	return result;
+}
+
+
 void Parser::error(const std::string& message) {
+	if (m_during_print_call)
+		std::cout << std::endl;
+
 	if (m_error_count == MAX_ERROR_COUNT)
 		std::cerr << "ERROR: max error count exceeded\n";
 
@@ -473,6 +706,9 @@ void Parser::error(const std::string& message) {
 }
 
 void Parser::warning(const std::string& message) {
+	if (m_during_print_call)
+		std::cout << std::endl;
+
 	std::cerr << "WARNING: " << 
 		message << "  " <<
 		m_file_name << ':' <<

@@ -2,6 +2,7 @@
 #include <algorithm>
 
 #include <iostream>
+#include <fstream>
 
 #include "board.hpp"
 
@@ -101,6 +102,77 @@ void Board::draw(WINDOW* scr) const {
 	for (int col = 0; col < m_width; ++col)
 		::waddch(scr, '-');
 	::waddch(scr, '+');
+}
+
+void Board::dump_to_file(const std::string& name) {
+	std::ofstream file(name);
+	file << "# Auto generated map file\n";
+	file << "x = " << m_width << ", y = " << m_height << ", ";
+	file << "rule = B";
+	for (auto&& iter : m_born)
+		file << iter;
+	file << "/S";
+	for (auto&& iter : m_survives)
+		file << iter;
+	file << std::endl;
+
+	int max_line_len = 80;
+	int line_length = 0;
+
+	auto out_char = [&](char c) {
+		if (line_length > max_line_len) {
+			file << '\n';
+			line_length = 0;
+		}
+		++line_length;
+		file << c;
+	};
+
+	auto out_string = [&](auto string) {
+		if (line_length + string.size() > max_line_len) {
+			file << '\n';
+			line_length = 0;
+		}
+		line_length += string.size();
+		file << string;
+	};
+
+	char previous_char = 0;
+	int previous_char_counter = 0;
+
+	auto out_marker = [&](char c) {
+		if (previous_char == c)
+			++previous_char_counter;
+		else {
+			if (previous_char_counter > 1) {
+				out_string(std::to_string(previous_char_counter) +
+						previous_char);
+			}
+			else if (previous_char_counter == 1) {
+				out_char(previous_char);
+			}
+			if (c != '$') {
+				previous_char = c;
+				previous_char_counter = 1;
+			}
+			else {
+				previous_char = 0;
+				previous_char_counter = 0;
+				out_char(c);
+			}
+		}
+	};
+
+	for (auto iter = begin(); iter != end(); ++iter) {
+		if (iter != begin() && iter.col == 0) {
+			out_marker('$');
+		}
+		if (*iter)
+			out_marker('o');
+		else
+			out_marker('b');
+	}
+	file << "!\n";
 }
 
 

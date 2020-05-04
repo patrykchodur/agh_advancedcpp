@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <curses.h>
+#include <string>
 #include <set>
 
 
@@ -24,6 +25,7 @@ public:
 	void add_at(int row, int col);
 	void kill_at(int row, int col);
 	void draw(WINDOW*) const;
+	void dump_to_file(const std::string& file);
 private:
 	board_array_t m_board;
 	board_array_t m_temporary_board;
@@ -66,6 +68,10 @@ public:
 	
 		bool operator!=(const Position& other) {
 			return !(*this == other);
+		}
+
+		bool operator*() {
+			return m_board->m_board[row][col];
 		}
 	private:
 		const Board* m_board;

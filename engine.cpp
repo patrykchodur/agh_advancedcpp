@@ -109,6 +109,16 @@ void Engine::loop() {
 				break;
 			case KEY_DOWN:
 				posy++;
+				break;
+			case KEY_F(1):
+				display_help();
+				timer = now() - refresh_rate;
+				break;
+			case 's':
+				display_save();
+				timer = now() - refresh_rate;
+				break;
+
 		}
 		std::this_thread::sleep_for(10ms);
 		
@@ -123,4 +133,71 @@ void Engine::loop() {
 
 	}
 	disableNcurses();
+}
+
+void Engine::display_help() {
+	::wclear(m_scr);
+	::wmove(m_scr, 0, 0);
+	auto print = [=](const std::string& string) {
+		::waddstr(m_scr, string.c_str());
+		::waddstr(m_scr, "\n");
+	};
+
+	print("HELP\n");
+
+	print("- use arrows to move");
+	print("- to diplay this help message press F1");
+	print("- to quit press 'q'");
+	print("- to pause game press spacebar");
+	print("- to kill cell press 'k'");
+	print("- to resurrect cell press 'x'");
+	print("- to save game press 's'");
+
+	::wrefresh(m_scr);
+
+	while (::getch() != 'q')
+		std::this_thread::sleep_for(10ms);
+
+}
+
+void Engine::display_save() {
+	::wclear(m_scr);
+	::wmove(m_scr, 0, 0);
+	::waddstr(m_scr, "Save file\n\nPlese enter save location "
+			"(esc to quit)\n");
+	cbreak();
+	echo();
+	timeout(-1);
+	::wrefresh(m_scr);
+
+	std::string location;
+	::keypad(m_scr, FALSE);
+
+	int c;
+	bool no_save = false;
+	while (true) {
+		c = ::getch();
+		// std::cerr << c << ' ';
+		// check if escape
+		if (c == 27) {
+			no_save = true;
+			break;
+		}
+		if (c == KEY_ENTER) {
+			break;
+		}
+		if (c == '\n') {
+			break;
+		}
+		location += c;
+	}
+
+	if (!no_save)
+		m_board.dump_to_file(location);
+
+	keypad(m_scr, TRUE);
+	cbreak();
+	noecho();
+	timeout(0);
+	::wclear(m_scr);
 }
