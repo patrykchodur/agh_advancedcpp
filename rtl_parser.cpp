@@ -6,6 +6,8 @@
 #include <cassert>
 #include <initializer_list>
 
+#define PARSE_ANYWAY
+#define MAX_ERROR_COUNT 4
 
 enum Token : int {
 	_ERROR = -1,
@@ -28,8 +30,8 @@ enum Token : int {
 
 std::string pretty_token(const std::pair<int, std::string>& tok) {
 	switch (tok.first) {
-	case _ERROR:
-		return std::string("error");
+	// case _ERROR:
+		// return std::string("error");
 	case _EOF:
 		return std::string("eof");
 	case _X:
@@ -132,7 +134,6 @@ private:
 		       (c >= 'A' && c <= 'Z')) {
 			result += c;
 			c = get_char();
-			m_col_nr++;
 		}
 		unget_char();
 		return result;
@@ -147,8 +148,9 @@ Lexer::Lexer(std::istream& stream) : m_stream(stream) {
 std::pair<Token, std::string> Lexer::lex() {
 	constexpr auto eof = std::istream::traits_type::eof();
 	bool get_more = false;
+	decltype(get_char()) c;
 	do {
-		auto c = get_char();
+		c = get_char();
 		get_more = false;
 
 		switch (c) {
@@ -215,8 +217,7 @@ std::pair<Token, std::string> Lexer::lex() {
 		}
 	}
 	while (get_more);
-	assert(0);
-	return { _ERROR, std::string() };
+	return { _ERROR, std::string(1, c) };
 }
 
 /*
@@ -244,7 +245,7 @@ std::pair<Token, std::string> Lexer::lex() {
 class Parser {
 public:
 	Parser();
-	Board parse_stream(std::istream& stream, const std::string& fname);
+	std::optional<Board> parse_stream(std::istream& stream, const std::string& fname);
 
 private:
 	std::string m_file_name;
@@ -259,6 +260,7 @@ private:
 
 	Token m_current_symbol;
 	std::string m_current_text;
+	std::pair<int, int> m_source_position;
 	std::string m_cached_text;
 
 	bool accept(Token symbol);
@@ -266,6 +268,7 @@ private:
 	bool ask(Token symbol);
 	bool ask(std::initializer_list<Token> token_list);
 	void next_symbol();
+	void update_position();
 
 	void error(const std::string& message);
 	void warning(const std::string& message);
@@ -309,18 +312,33 @@ bool Parser::ask(std::initializer_list<Token> token_list) {
 }
 
 bool Parser::expect(Token symbol) {
+#ifdef PARSE_ANYWAY
+	while (!accept(symbol)) {
+		if (m_current_symbol == _EOF)
+			return false;
+		unexpected_token(m_current_symbol);
+		next_symbol();
+	}
+	return true;
+#else
 	if (accept(symbol))
 		return true;
 
-	unexpected_token(symbol);
+	unexpected_token(m_current_symbol);
 	return false;
+#endif // !PARSE_ANYWAY
 }
 
 void Parser::next_symbol() {
+	update_position();
 	auto pair = m_lex->lex();
 	m_current_symbol = pair.first;
 	m_current_text = m_cached_text;
 	m_cached_text = pair.second;
+}
+
+void Parser::update_position() {
+	m_source_position = { m_lex->get_line_number(), m_lex->get_col_number() };
 }
 
 void Parser::rtl_file() {
@@ -349,7 +367,7 @@ void Parser::header_section() {
 		warning("y not set. Using default - " + std::to_string(m_y));
 	}
 	if (m_born.empty() || m_survives.empty()) {
-		warning("rules not set. Using default - B3/S23");
+		warning("rule not set. Using default - B3/S23");
 		m_born.insert(3);
 		m_survives.insert({2, 3});
 	}
@@ -361,18 +379,24 @@ void Parser::value_description() {
 	if (accept(_X)) {
 		expect(_EQUALS);
 		expect(_NUMBER);
+		if (m_x != 0)
+			error("x redefinition");
 		m_x = std::stoi(m_current_text);
 		return;
 	}
 	else if (accept(_Y)) {
 		expect(_EQUALS);
 		expect(_NUMBER);
+		if (m_y != 0)
+			error("y redefinition");
 		m_y = std::stoi(m_current_text);
 		return;
 	}
 	else {
 		expect(_RULE);
 		expect(_EQUALS);
+		if (!m_survives.empty() && !m_born.empty())
+			error("rule redefinition");
 		rule_description();
 	}
 }
@@ -390,11 +414,24 @@ void Parser::rule_description() {
 }
 
 void Parser::pattern_section() {
+	auto row = m_position.row;
 	line_pattern();
 	while (accept(_DOLAR)) {
+		if (!(row == m_position.row ||
+			  (row + 1 == m_position.row &&
+			   0 == m_position.col)))
+			error("line too long");
+
 		finnish_line();
+
+		row = m_position.row;
 		line_pattern();
 	}
+	if (!(row == m_position.row ||
+		  (row + 1 == m_position.row &&
+		   0 == m_position.col)))
+		error("line too long");
+
 	finnish_line();
 	expect(_EXCLAMATION_MARK);
 }
@@ -421,11 +458,16 @@ void Parser::pattern() {
 }
 
 void Parser::error(const std::string& message) {
-	std::cerr << "ERROR: " << 
-		message << "  " <<
-		m_file_name << ':' <<
-		m_lex->get_line_number() << ':' << m_lex->get_col_number() <<
-		'\n';
+	if (m_error_count == MAX_ERROR_COUNT)
+		std::cerr << "ERROR: max error count exceeded\n";
+
+	else if (m_error_count < MAX_ERROR_COUNT)
+		std::cerr << "ERROR: " << 
+			message << "  " <<
+			m_file_name << ':' <<
+			m_source_position.first << ':' <<
+			m_source_position.second  - 1 <<
+			'\n';
 
 	++m_error_count;
 }
@@ -434,7 +476,7 @@ void Parser::warning(const std::string& message) {
 	std::cerr << "WARNING: " << 
 		message << "  " <<
 		m_file_name << ':' <<
-		m_lex->get_line_number() << ':' << m_lex->get_col_number() <<
+		m_source_position.first << ':' << m_source_position.second - 1 <<
 		'\n';
 }
 
@@ -451,24 +493,29 @@ int Parser::finnish_line() {
 }
 
 void Parser::unexpected_token(Token symbol) {
+	update_position();
 	error("Unexpected token: " + pretty_token({symbol, m_cached_text}));
 }
 
-Board Parser::parse_stream(std::istream& stream, const std::string& name) {
+std::optional<Board> Parser::parse_stream(std::istream& stream, const std::string& name) {
 	m_file_name = name;
 	m_lex.emplace(stream);
 	next_symbol();
 	rtl_file();
-	return std::move(*m_board);
+	if (!m_error_count)
+		return std::move(*m_board);
+	else
+		return { };
+
 }
 
-Board parse_from_file(const std::string& name) {
+std::optional<Board> parse_from_file(const std::string& name) {
 	std::ifstream stream(name);
 	Parser parser;
 	return parser.parse_stream(stream, name);
 }
 
-Board parse_from_stdin() {
+std::optional<Board> parse_from_stdin() {
 	Parser parser;
 	return parser.parse_stream(std::cin, "stdin");
 }

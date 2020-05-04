@@ -74,6 +74,8 @@ int main(int argc, char* argv[]) {
 
 	if (vm.count("input-file")) {
 		board = parse_from_file(vm["input-file"].as<std::string>());
+		if (!board)
+			return EXIT_FAILURE;
 	}
 
 	if (!board) {

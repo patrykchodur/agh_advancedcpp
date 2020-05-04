@@ -3,10 +3,11 @@
 
 #include <iostream>
 #include <string>
+#include <optional>
 
 #include "board.hpp"
 
-Board parse_from_file(const std::string& filename);
-Board parse_from_stdin();
+std::optional<Board> parse_from_file(const std::string& filename);
+std::optional<Board> parse_from_stdin();
 
 #endif
