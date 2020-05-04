@@ -47,16 +47,16 @@ int main(int argc, char* argv[]) {
 	po::options_description desc("Allowed options");
 	desc.add_options()
 		("help", "print this text")
-		("width", po::value<int>(), "set board width")
-		("height", po::value<int>(), "set board height")
-		("speed", po::value<double>(),
+		("width,w", po::value<int>(), "set board width")
+		("height,h", po::value<int>(), "set board height")
+		("speed,s", po::value<double>(),
 			"set speed of simmulation (time needed for one change)")
-		("max-iterations", po::value<int>(), 
+		("max-iterations,m", po::value<int>(), 
 			"set max number of iterations")
-		("init-values",
+		("init-values,I",
 			po::value<std::vector<coordinates_pair>>()->multitoken(), 
 			"init values as pairs of ints y-x: 5-3")
-		("input-file", po::value<std::string>(),
+		("input-file,i", po::value<std::string>(),
 			".rtl input file")
 		;
 

@@ -70,7 +70,7 @@ void Engine::loop() {
 	int iterations = 0;
 
 	while (!exit_loop && 
-			(m_max_iterations == -1 || iterations++ < m_max_iterations)) {
+			(m_max_iterations == -1 || iterations < m_max_iterations)) {
 		m_board.draw(m_scr);
 		::wmove(m_scr, posy, posx);
 		::wrefresh(m_scr);
@@ -127,6 +127,7 @@ void Engine::loop() {
 			auto elapsed = now() - timer;
 			if (elapsed > refresh_rate) {
 				m_board.iterate();
+				iterations++;
 				timer += refresh_rate;
 			}
 		}

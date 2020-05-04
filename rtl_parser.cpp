@@ -305,7 +305,7 @@ std::pair<Token, std::string> Lexer::lex() {
  *
  * argument = [ math_expression | _STRING ]
  *
- * value_description = _IDENTIFIER, _EQUALS, ( _NUMBER | expression_value );
+ * value_description = _IDENTIFIER, _EQUALS, ( [ _MINUS ], _NUMBER | expression_value );
  *
  * rule_description = _B, _NUMBER, _SLASH, _S, _NUMBER;
  *
@@ -319,6 +319,8 @@ std::pair<Token, std::string> Lexer::lex() {
  *
  * math_expression = _IDENTIFIER 
  *                  | _NUMBER
+ *                  | _MINUS math_expression
+ *                  | _PLUS math_expression
  *                  | _O_BRACKET math_expression _C_BRACKET
  *                  | math_expression _MULTIPLY math_expression
  *                  | math_expression _SLASH math_expression
@@ -375,6 +377,8 @@ private:
 	void line_pattern();
 	void pattern();
 	int expression_value();
+	std::string m_expression_desc;
+	bool m_inside_expression;
 	int math_expression();
 
 	int finnish_line();
@@ -431,6 +435,9 @@ void Parser::next_symbol() {
 	m_current_text = m_cached_text;
 	m_cached_text = pair.second;
 
+	if (m_inside_expression)
+		m_expression_desc += m_current_text;
+
 	if (m_current_symbol < 0)
 		token_error();
 }
@@ -469,6 +476,7 @@ void Parser::header_section() {
 	}
 
 	int x, y;
+	bool valid = true;
 	if (!m_values.count("x")) {
 		x = 10;
 		warning("x not set. Using default - " + std::to_string(x));
@@ -488,6 +496,16 @@ void Parser::header_section() {
 		m_born.insert(3);
 		m_survives.insert({2, 3});
 	}
+	if (x < 1) {
+		error("Value of x is invalid - " + std::to_string(x));
+		valid = false;
+	}
+	if (y < 1) {
+		error("Value of y is invalid - " + std::to_string(y));
+		valid = false;
+	}
+	if (!valid)
+		return;
 	m_board = Board(y, x);
 	m_position = m_board->begin();
 }
@@ -546,11 +564,23 @@ void Parser::value_description() {
 		rule_description();
 	else {
 		int result;
+		bool unary_minus = false;
+		bool unary_plus = false;
+		if (accept(_MINUS))
+			unary_minus = true;
+		else if (accept(_PLUS))
+			unary_plus = true;
 		if (accept(_NUMBER))
 			result = std::stoi(m_current_text);
 		else {
+			if (unary_minus)
+				error("Unary minus not allowed here");
+			if (unary_plus)
+				error("Unary plus not allowed here");
 			result = expression_value();
 		}
+		if (unary_minus)
+			result = -result;
 		m_values.insert_or_assign(identifier, result);
 	}
 	/*
@@ -593,6 +623,8 @@ void Parser::rule_description() {
 }
 
 void Parser::pattern_section() {
+	if (m_error_count)
+		return;
 	auto row = m_position.row;
 	line_pattern();
 	while (accept(_DOLAR)) {
@@ -625,8 +657,11 @@ void Parser::pattern() {
 	int repetitions = 1;
 	if (accept(_NUMBER))
 		repetitions = std::stoi(m_current_text);
-	else if (ask(_PERCENT))
+	else if (ask(_PERCENT)) {
 		repetitions = expression_value();
+		error("Negative value of expression '" + m_expression_desc + '\'');
+		return;
+	}
 	if (accept(_B)) {
 		while (repetitions--)
 			m_board->kill_at(m_position++);
@@ -639,14 +674,18 @@ void Parser::pattern() {
 }
 
 int Parser::expression_value() {
+	m_inside_expression = true;
+	m_expression_desc.clear();
 	int result;
 	expect(_PERCENT);
 	expect(_O_BRACKET);
 	result = math_expression();
 	expect(_C_BRACKET);
+	m_inside_expression = false;
 	return result;
 
 
+	/*
 	expect(_IDENTIFIER);
 	auto identifier = m_current_text;
 	expect(_C_BRACKET);
@@ -655,6 +694,7 @@ int Parser::expression_value() {
 		return 0;
 	}
 	return m_values[identifier];
+	*/
 }
 
 int Parser::math_expression() {
@@ -666,6 +706,12 @@ int Parser::math_expression() {
 		}
 		result = m_values[m_current_text];
 	}
+	else if (accept(_MINUS)) {
+		result = math_expression();
+		result = -result;
+	}
+	else if (accept(_PLUS))
+		result = math_expression();
 	else if (accept(_NUMBER))
 		result = std::stoi(m_current_text);
 	else if (accept(_O_BRACKET)){
