@@ -564,6 +564,7 @@ void Parser::function_call() {
 void Parser::if_statement() {
 	expect(_IF);
 	int cond;
+	int if_counter = 0;
 	bool evaluated = false;
 	while (true) {
 		if (!evaluated)
@@ -575,8 +576,12 @@ void Parser::if_statement() {
 		else {
 			// skip if branch
 			do {
+				if (ask(_IF))
+					if_counter++;
+				if (ask(_ENDIF))
+					if_counter--;
 				next_symbol();
-			} while(!ask({_ELSIF, _ELSE, _ENDIF}));
+			} while(!ask({_ELSIF, _ELSE, _ENDIF}) || if_counter > 0);
 		}
 		if (accept(_ELSIF))
 			continue;
