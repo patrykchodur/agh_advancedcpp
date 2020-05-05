@@ -35,6 +35,10 @@ enum Token : int {
 	_COMMENT, // #\.\$
 	_STRING,
 	_CALL,
+	_IF,
+	_ELSIF,
+	_ELSE,
+	_ENDIF,
 	_RULE, // rule
 	_TOKEN_LAST
 };
@@ -81,6 +85,14 @@ std::string pretty_token(const std::pair<int, std::string>& tok) {
 		return {"string '" + tok.second + '\''};
 	case _CALL:
 		return {"call"};
+	case _IF:
+		return {"if"};
+	case _ELSIF:
+		return {"elsif"};
+	case _ELSE:
+		return {"else"};
+	case _ENDIF:
+		return {"endif"};
 	case _RULE:
 		return {"rule"};
 	case _IDENTIFIER:
@@ -204,6 +216,14 @@ std::pair<Token, std::string> Lexer::lex() {
 
 			if (whole_word == "call")
 				return { _CALL, whole_word };
+			if (whole_word == "if")
+				return { _IF, whole_word };
+			if (whole_word == "elsif")
+				return { _ELSIF, whole_word };
+			if (whole_word == "else")
+				return { _ELSE, whole_word };
+			if (whole_word == "endif")
+				return { _ENDIF, whole_word };
 			return { _IDENTIFIER, static_cast<char>(c) + word };
 		}
 
@@ -283,6 +303,7 @@ std::pair<Token, std::string> Lexer::lex() {
 			return { _PERCENT, std::string(1, c) };
 		case ' ':
 		case '\n':
+		case '\t':
 			get_more = true;
 		}
 	}
@@ -299,7 +320,9 @@ std::pair<Token, std::string> Lexer::lex() {
  *
  * header_section = [ statement ], { _COMMA, statement };
  *
- * statement = value_description | (_CALL, function_call);
+ * statement = value_description | if_statement | (_CALL, function_call) ;
+ *
+ * if_statement = _IF, expression_value, header_section, { _ELSIF, expression_value, header_section }, [ _ELSE, header_section ], _ENDIF;
  *
  * function_call = _IDENTIFIER, _O_BRACKET, argument, _C_BRACKET
  *
@@ -369,6 +392,7 @@ private:
 	void header_section();
 	void statement();
 	void function_call();
+	void if_statement();
 	void print();
 	bool m_during_print_call;
 	void value_description();
@@ -472,7 +496,7 @@ void Parser::comment_section() {
 }
 
 void Parser::header_section() {
-	if (ask({_IDENTIFIER, _CALL})) {
+	if (ask({_IDENTIFIER, _CALL, _IF})) {
 		statement();
 		while (accept(_COMMA))
 			statement();
@@ -517,6 +541,8 @@ void Parser::header_section() {
 void Parser::statement() {
 	if (accept(_CALL))
 		function_call();
+	else if (ask(_IF))
+		if_statement();
 	else
 		value_description();
 }
@@ -533,6 +559,43 @@ void Parser::function_call() {
 	expect(_O_BRACKET);
 	print();
 	expect(_C_BRACKET);
+}
+
+void Parser::if_statement() {
+	expect(_IF);
+	int cond;
+	bool evaluated = false;
+	while (true) {
+		if (!evaluated)
+			cond = expression_value();
+		if (cond && !evaluated) {
+			evaluated = true;
+			header_section();
+		}
+		else {
+			// skip if branch
+			do {
+				next_symbol();
+			} while(!ask({_ELSIF, _ELSE, _ENDIF}));
+		}
+		if (accept(_ELSIF))
+			continue;
+		if (accept(_ELSE)) {
+			if (!evaluated) {
+				header_section();
+				evaluated = true;
+			}
+			else {
+				do {
+					next_symbol();
+				} while (!ask(_ENDIF));
+			}
+		}
+		if (accept(_ENDIF))
+			break;
+	}
+
+
 }
 
 void Parser::print() {
