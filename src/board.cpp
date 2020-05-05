@@ -151,7 +151,7 @@ void Board::dump_to_file(const std::string& name) {
 			else if (previous_char_counter == 1) {
 				out_char(previous_char);
 			}
-			if (c != '$') {
+			if (c == 'o' || c == 'b') {
 				previous_char = c;
 				previous_char_counter = 1;
 			}
@@ -172,7 +172,8 @@ void Board::dump_to_file(const std::string& name) {
 		else
 			out_marker('b');
 	}
-	file << "!\n";
+	out_marker('!');
+	file << "\n";
 }
 
 
