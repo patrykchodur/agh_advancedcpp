@@ -60,6 +60,7 @@ int main(int argc, char* argv[]) {
 			"init values as pairs of ints y-x: 5-3")
 		("input-file,i", po::value<std::string>(),
 			".rtl input file")
+		("graphic", "use graphical interface")
 		;
 
 	po::variables_map vm;
@@ -101,31 +102,32 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
+	if (vm.count("graphic")) {
+		sf::RenderWindow window(sf::VideoMode(800, 600), "My window");
+		Engine<sf::RenderWindow&> engine(window, std::move(*board));
 
-	sf::RenderWindow window(sf::VideoMode(800, 600), "My window");
-	Engine<sf::RenderWindow&> engine(window, std::move(*board));
-
-	// setting engine
-	if (vm.count("max-iterations"))
-		engine.setMaxIterations(vm["max-iterations"].as<int>());
-	if (vm.count("speed"))
-		engine.setSpeed(vm["speed"].as<double>());
-
-
-	engine.loop();
-	/*
-
-	Engine<WINDOW*> engine(stdscr, std::move(*board));
-
-	// setting engine
-	if (vm.count("max-iterations"))
-		engine.setMaxIterations(vm["max-iterations"].as<int>());
-	if (vm.count("speed"))
-		engine.setSpeed(vm["speed"].as<double>());
+		// setting engine
+		if (vm.count("max-iterations"))
+			engine.setMaxIterations(vm["max-iterations"].as<int>());
+		if (vm.count("speed"))
+			engine.setSpeed(vm["speed"].as<double>());
 
 
-	engine.loop();
-	*/
+		engine.loop();
+	}
+	else {
+		Engine<WINDOW*> engine(stdscr, std::move(*board));
+
+		// setting engine
+		if (vm.count("max-iterations"))
+			engine.setMaxIterations(vm["max-iterations"].as<int>());
+		if (vm.count("speed"))
+			engine.setSpeed(vm["speed"].as<double>());
+
+
+		engine.loop();
+	}
+
 
 
 }

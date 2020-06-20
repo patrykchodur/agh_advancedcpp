@@ -108,10 +108,29 @@ void Board::draw(WINDOW* scr) const {
 }
 template<>
 void Board::draw(sf::RenderTarget& target) const {
-	sf::Texture x_texture;
-	sf::Texture blank_texture;
-	x_texture.loadFromFile("assets/x_texture.png");
-	blank_texture.loadFromFile("assets/blank_texture.png");
+	// sf::Texture x_texture;
+	// sf::Texture blank_texture;
+	// x_texture.loadFromFile("assets/x_texture.png");
+	// blank_texture.loadFromFile("assets/blank_texture.png");
+	sf::Font font;
+	font.loadFromFile("assets/arial.ttf");
+	sf::Text x_text;
+	x_text.setFont(font);
+	x_text.setString("x");
+	x_text.setFillColor(sf::Color::Black);
+	x_text.setCharacterSize(24);
+	// x_text.setStyle(sf::Text::Bold | sf::Text::Underlined);
+	double x_mul = 10;
+	double y_mul = 15;
+	for (int row = 0; row < m_height; ++row){
+		for (int col = 0; col < m_width; ++col) {
+			if (!m_board[row][col])
+				continue;
+
+			x_text.setPosition(x_mul * col, y_mul * row);
+			target.draw(x_text);
+		}
+	}
 
 
 }

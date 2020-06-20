@@ -148,13 +148,34 @@ void Engine<WINDOW*>::display_save() {
 
 template<>
 void Engine<sf::RenderWindow&>::loop() {
+	auto now = []() { return std::chrono::system_clock::now(); };
+	auto timer = now();
+	auto refresh_rate = m_iteration_duration;
+
 	auto& window = m_scr;
+
+	int iterations = 0;
+	bool pause = false;
+
 	while (window.isOpen()) {
+		window.clear(sf::Color::White);
+		m_board.draw<sf::RenderTarget&>(window);
+		window.display();
+
 		sf::Event event;
 		while (window.pollEvent(event)) {
 
 			if(event.type == sf::Event::Closed)
 				window.close();
+
+		}
+		if (!pause) {
+			auto elapsed = now() - timer;
+			if (elapsed > refresh_rate) {
+				m_board.iterate();
+				iterations++;
+				timer += refresh_rate;
+			}
 		}
 	}
 
@@ -175,6 +196,8 @@ void Engine<WINDOW*>::loop() {
 	int posy = 0;
 
 	int iterations = 0;
+	if (!m_scr)
+		m_scr = stdscr;
 
 	while (!exit_loop && 
 			(m_max_iterations == -1 || iterations < m_max_iterations)) {
