@@ -4,38 +4,47 @@
 #include <chrono>
 #include <thread>
 
+#include <SFML/Graphics.hpp>
+
 #include <iostream>
+
 
 using namespace std::chrono_literals;
 
-Engine::Engine(WINDOW* scr, const Board& board) :
+template<class Window>
+Engine<Window>::Engine(Window scr, const Board& board) :
 		m_board(board), m_scr(scr), m_iteration_duration(1000ms) {
-	setupNcurses();
-	if (!m_scr)
-		m_scr = stdscr;
+	setupDisplay();
 	m_max_iterations = -1;
 }
 
-Engine::Engine(WINDOW* scr, Board&& board) :
+template<class Window>
+Engine<Window>::Engine(Window scr, Board&& board) :
 		m_board(board), m_scr(scr), m_iteration_duration(1000ms) {
-	setupNcurses();
-	if (!m_scr)
-		m_scr = stdscr;
+	setupDisplay();
 	m_max_iterations = -1;
 }
 
 
 
-void Engine::setSpeed(double seconds) {
+template<class Window>
+void Engine<Window>::setSpeed(double seconds) {
 	m_iteration_duration = std::chrono::milliseconds(
 			static_cast<int>(seconds * 1000));
 }
 
-void Engine::setMaxIterations(int max) {
+template<class Window>
+void Engine<Window>::setMaxIterations(int max) {
 	m_max_iterations = max;
 }
 
-void Engine::setupNcurses() {
+template<class Window>
+void Engine<Window>::setupDisplay() {
+
+}
+
+template <>
+void Engine<WINDOW*>::setupDisplay() {
 	static bool was_done = false;
 	if (was_done)
 		return;
@@ -49,12 +58,110 @@ void Engine::setupNcurses() {
 
 }
 
-void Engine::disableNcurses() {
+template<class Window>
+void Engine<Window>::disableDisplay() {
+
+}
+template<>
+void Engine<WINDOW*>::disableDisplay() {
 	endwin();
 }
 
+template<>
+void Engine<sf::RenderWindow&>::display_help() {
 
-void Engine::loop() {
+}
+
+template<>
+void Engine<WINDOW*>::display_help() {
+	::wclear(m_scr);
+	::wmove(m_scr, 0, 0);
+	auto print = [=](const std::string& string) {
+		::waddstr(m_scr, string.c_str());
+		::waddstr(m_scr, "\n");
+	};
+
+	print("HELP\n");
+
+	print("- use arrows to move");
+	print("- to diplay this help message press F1");
+	print("- to quit press 'q'");
+	print("- to pause game press spacebar");
+	print("- to kill cell press 'k'");
+	print("- to resurrect cell press 'x'");
+	print("- to save game press 's'");
+
+	::wrefresh(m_scr);
+
+	while (::getch() != 'q')
+		std::this_thread::sleep_for(10ms);
+
+}
+
+template<>
+void Engine<sf::RenderWindow&>::display_save() {
+
+}
+
+template<>
+void Engine<WINDOW*>::display_save() {
+	::wclear(m_scr);
+	::wmove(m_scr, 0, 0);
+	::waddstr(m_scr, "Save file\n\nPlese enter save location "
+			"(esc to quit)\n");
+	cbreak();
+	echo();
+	timeout(-1);
+	::wrefresh(m_scr);
+
+	std::string location;
+	::keypad(m_scr, FALSE);
+
+	int c;
+	bool no_save = false;
+	while (true) {
+		c = ::getch();
+		// std::cerr << c << ' ';
+		// check if escape
+		if (c == 27) {
+			no_save = true;
+			break;
+		}
+		if (c == KEY_ENTER) {
+			break;
+		}
+		if (c == '\n') {
+			break;
+		}
+		location += c;
+	}
+
+	if (!no_save)
+		m_board.dump_to_file(location);
+
+	keypad(m_scr, TRUE);
+	cbreak();
+	noecho();
+	timeout(0);
+	::wclear(m_scr);
+}
+
+template<>
+void Engine<sf::RenderWindow&>::loop() {
+	auto& window = m_scr;
+	while (window.isOpen()) {
+		sf::Event event;
+		while (window.pollEvent(event)) {
+
+			if(event.type == sf::Event::Closed)
+				window.close();
+		}
+	}
+
+}
+
+template<>
+void Engine<WINDOW*>::loop() {
 	auto now = []() { return std::chrono::system_clock::now(); };
 	auto timer = now();
 	
@@ -133,72 +240,8 @@ void Engine::loop() {
 		}
 
 	}
-	disableNcurses();
+	disableDisplay();
 }
 
-void Engine::display_help() {
-	::wclear(m_scr);
-	::wmove(m_scr, 0, 0);
-	auto print = [=](const std::string& string) {
-		::waddstr(m_scr, string.c_str());
-		::waddstr(m_scr, "\n");
-	};
-
-	print("HELP\n");
-
-	print("- use arrows to move");
-	print("- to diplay this help message press F1");
-	print("- to quit press 'q'");
-	print("- to pause game press spacebar");
-	print("- to kill cell press 'k'");
-	print("- to resurrect cell press 'x'");
-	print("- to save game press 's'");
-
-	::wrefresh(m_scr);
-
-	while (::getch() != 'q')
-		std::this_thread::sleep_for(10ms);
-
-}
-
-void Engine::display_save() {
-	::wclear(m_scr);
-	::wmove(m_scr, 0, 0);
-	::waddstr(m_scr, "Save file\n\nPlese enter save location "
-			"(esc to quit)\n");
-	cbreak();
-	echo();
-	timeout(-1);
-	::wrefresh(m_scr);
-
-	std::string location;
-	::keypad(m_scr, FALSE);
-
-	int c;
-	bool no_save = false;
-	while (true) {
-		c = ::getch();
-		// std::cerr << c << ' ';
-		// check if escape
-		if (c == 27) {
-			no_save = true;
-			break;
-		}
-		if (c == KEY_ENTER) {
-			break;
-		}
-		if (c == '\n') {
-			break;
-		}
-		location += c;
-	}
-
-	if (!no_save)
-		m_board.dump_to_file(location);
-
-	keypad(m_scr, TRUE);
-	cbreak();
-	noecho();
-	timeout(0);
-	::wclear(m_scr);
-}
+template class Engine<WINDOW*>;
+template class Engine<sf::RenderWindow&>;

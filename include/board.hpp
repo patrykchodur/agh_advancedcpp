@@ -24,7 +24,8 @@ public:
 	// with bound checking
 	void add_at(int row, int col);
 	void kill_at(int row, int col);
-	void draw(WINDOW*) const;
+	template <class Window>
+	void draw(Window) const;
 	void dump_to_file(const std::string& file);
 private:
 	board_array_t m_board;

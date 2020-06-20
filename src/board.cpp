@@ -4,6 +4,8 @@
 #include <iostream>
 #include <fstream>
 
+#include <SFML/Graphics.hpp>
+
 #include "board.hpp"
 
 // #define BOARD_OVERLAP
@@ -90,6 +92,7 @@ void Board::kill_at(int row, int col) {
 		m_board[row][col] = false;
 }
 
+template<>
 void Board::draw(WINDOW* scr) const {
 	for (int row = 0; row < m_height; ++row) {
 		::wmove(scr, row, 0);
@@ -102,6 +105,15 @@ void Board::draw(WINDOW* scr) const {
 	for (int col = 0; col < m_width; ++col)
 		::waddch(scr, '-');
 	::waddch(scr, '+');
+}
+template<>
+void Board::draw(sf::RenderTarget& target) const {
+	sf::Texture x_texture;
+	sf::Texture blank_texture;
+	x_texture.loadFromFile("assets/x_texture.png");
+	blank_texture.loadFromFile("assets/blank_texture.png");
+
+
 }
 
 void Board::dump_to_file(const std::string& name) {
@@ -175,7 +187,6 @@ void Board::dump_to_file(const std::string& name) {
 	out_marker('!');
 	file << "\n";
 }
-
 
 
 

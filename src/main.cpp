@@ -1,10 +1,12 @@
 #include <curses.h>
 #include <chrono>
 #include <thread>
+#include <optional>
 #include <boost/program_options.hpp>
 #include <string>
 #include <vector>
 #include <iostream>
+#include <SFML/Graphics.hpp>
 
 #include "board.hpp"
 #include "engine.hpp"
@@ -99,7 +101,9 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
-	Engine engine(stdscr, std::move(*board));
+
+	sf::RenderWindow window(sf::VideoMode(800, 600), "My window");
+	Engine<sf::RenderWindow&> engine(window, std::move(*board));
 
 	// setting engine
 	if (vm.count("max-iterations"))
@@ -109,6 +113,19 @@ int main(int argc, char* argv[]) {
 
 
 	engine.loop();
+	/*
+
+	Engine<WINDOW*> engine(stdscr, std::move(*board));
+
+	// setting engine
+	if (vm.count("max-iterations"))
+		engine.setMaxIterations(vm["max-iterations"].as<int>());
+	if (vm.count("speed"))
+		engine.setSpeed(vm["speed"].as<double>());
+
+
+	engine.loop();
+	*/
 
 
 }
